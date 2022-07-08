@@ -1,6 +1,6 @@
 # BC Skills - Projects
 
-Foobar is a Python library for dealing with word pluralization.
+PyPostExcel is a python library that export a Postgres DB to an Excel File
 
 ## Requirements
 
