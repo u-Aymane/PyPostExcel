@@ -1,5 +1,3 @@
-import string
-import time
 import psycopg2
 import xlsxwriter
 from xlsxwriter import utility
@@ -79,7 +77,7 @@ class PyPostExcel:
             'indent': 4
         })
 
-        self.setColumnSize('B:Z', 14.29)
+        self.setColumnSize('B:Z', 16)
         self.setColumnSize('A:A', 28.14)
         self.setRowSize(0, 50.25)
         self.setRowSize(1, 33.75)
@@ -102,13 +100,22 @@ class PyPostExcel:
     def ColToName(self, val: int):
         return utility.xl_col_to_name(val)
 
+    def TargetedHeader(self, targetHeader, table):
+        header = []
+        for i in targetHeader:
+            if i in self.tableHeader(table):
+                header.append(i)
+
+        return header
+
     def OrganizeFile(self, main_data_title: str, main_data: list, secondary_data: list,
                      date='date'):  # [id, first_name...etc] , [rating, performance, date...]
 
         self.InitializeFormats()
 
         #  Writing Years Sections
-        self.worksheet.merge_range(f'B1:{utility.xl_col_to_name(len(main_data)-1)}1', main_data_title, self.year_format)
+        self.worksheet.merge_range(f'B1:{utility.xl_col_to_name(len(main_data) - 1)}1', main_data_title,
+                                   self.year_format)
         years = []
         current_index = len(main_data) - 1
         for items in self.data[date]:
@@ -121,8 +128,13 @@ class PyPostExcel:
 
         # Write Sub titles (headers) and values for principle section
 
-    def run(self):
+        main_header = self.TargetedHeader(main_data, self.table_root) + self.TargetedHeader(secondary_data,
+                                                                                            self.table_child) * len(
+            years)
+        print(main_header)
+        self.worksheet.write_row('A2', main_header, self.header_format)
 
+    def run(self):
         self.InitializeFormats()
         self.worksheet.merge_range('B1:D1', 'Year', self.year_format)
         self.worksheet.write('B2', 'sub_title', self.header_format)
