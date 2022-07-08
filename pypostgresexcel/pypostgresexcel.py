@@ -1,6 +1,8 @@
+import string
 import time
 import psycopg2
 import xlsxwriter
+from xlsxwriter import utility
 
 
 class PyPostExcel:
@@ -19,8 +21,21 @@ class PyPostExcel:
         self.header_format = None
         self.root_format = None
         self.child_format = None
-        self.worksheet = None
-        self.workbook = None
+        self.workbook = xlsxwriter.Workbook('test.xlsx')
+        self.worksheet = self.workbook.add_worksheet()
+        self.data = {}
+        self.table_root = 'employee'
+        self.table_child = 'employee_performance'
+
+    def tableHeader(self, table: str):
+        self.db_cursor.execute(
+            f"SELECT * FROM information_schema.columns WHERE table_name='{table}' order by ordinal_position")
+        headers = []
+        headers_schema = self.db_cursor.fetchall()
+        for header in headers_schema:
+            headers.append(header[3])
+
+        return headers
 
     def setRowSize(self, row: int, size: float):
         self.worksheet.set_row(row, size)
@@ -30,6 +45,9 @@ class PyPostExcel:
 
     def setRootSize(self, row: int, size=33.75):
         self.setRowSize(row, size)
+
+    def closeWorkbook(self):
+        self.workbook.close()
 
     def InitializeFormats(self) -> None:
         self.year_format = self.workbook.add_format({
@@ -66,11 +84,45 @@ class PyPostExcel:
         self.setRowSize(0, 50.25)
         self.setRowSize(1, 33.75)
 
+    def getTable(self):
+        self.db_cursor.execute(f'SELECT * FROM {self.table_root} '
+                               f'JOIN {self.table_child} '
+                               f'ON {self.table_root}.id = {self.table_child}.id_employee')
+        rows = self.db_cursor.fetchall()
+        headers = self.tableHeader(self.table_root) + self.tableHeader(self.table_child)
 
+        for row in rows:
+            i = 0
+            for header in headers:
+                if header not in self.data.keys():
+                    self.data[header] = []
+                self.data[header].append(row[i])
+                i += 1
+
+    def ColToName(self, val: int):
+        return utility.xl_col_to_name(val)
+
+    def OrganizeFile(self, main_data_title: str, main_data: list, secondary_data: list,
+                     date='date'):  # [id, first_name...etc] , [rating, performance, date...]
+
+        self.InitializeFormats()
+
+        #  Writing Years Sections
+        self.worksheet.merge_range(f'B1:{utility.xl_col_to_name(len(main_data)-1)}1', main_data_title, self.year_format)
+        years = []
+        current_index = len(main_data) - 1
+        for items in self.data[date]:
+            if items is not None and items.year not in years:
+                years.append(items.year)
+                self.worksheet.merge_range(
+                    f'{self.ColToName(current_index + 1)}1:{self.ColToName(current_index + len(secondary_data))}1',
+                    items.year, self.year_format)
+                current_index += len(secondary_data)
+
+        # Write Sub titles (headers) and values for principle section
 
     def run(self):
-        self.workbook = xlsxwriter.Workbook('test.xlsx')
-        self.worksheet = self.workbook.add_worksheet()
+
         self.InitializeFormats()
         self.worksheet.merge_range('B1:D1', 'Year', self.year_format)
         self.worksheet.write('B2', 'sub_title', self.header_format)
