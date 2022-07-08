@@ -1,3 +1,4 @@
+import string
 import time
 import psycopg2
 import xlsxwriter
@@ -16,48 +17,49 @@ class PyPostExcel:
         self.db_connection = psycopg2.connect(database=self.db_name, user=self.username, password=self.password,
                                               host=self.host, port="5432")
         self.db_cursor = self.db_connection.cursor()
-        if header:
-            self.rows.append(self.tableHeader())
+
+    def writeTable(self, file_name=f'{time.time()}', sheet_name='sheet1', table=None):
+        self.getData(table=table)
+        workbook = xlsxwriter.Workbook(f'{file_name}.xlsx', {'default_date_format': 'dd/mm/yyyy'})
+        worksheet = workbook.add_worksheet(sheet_name)
+        print(self.tableHeader())
+        worksheet.add_table(f'A1:{string.ascii_uppercase[len(self.rows[0])-1]}{len(self.rows) + 1}',
+                            {'data': self.rows, 'columns': self.tableHeader()})
+        workbook.close()
 
     def getData(self, query="SELECT * FROM employee", verbose=False, table=None):
 
         if verbose:
-            print(f'Connected to {self.host}:{self.port}')  # by setting verbose to true the end user can see what's happening
+            print(f'Connected to {self.host}:{self.port}')
 
         if table is None:
-            self.db_cursor.execute(query)  # custom query
+            self.db_cursor.execute(query)
         else:
-            self.db_cursor.execute(f'SELECT * FROM {table}')  # getting all data from a table
+            self.db_cursor.execute(f'SELECT * FROM {table}')
 
         rows = self.db_cursor.fetchall()
         for row in rows:
-            self.rows.append(row)
+            # self.rows.append(row)
+            temp = []
+            for j in row:
+                temp.append(j)
+
+            self.rows.append(temp)
             if self.columns is None:
-                self.columns = [[] for _ in range(len(row))]  # create arrays for each column
+                self.columns = [[] for _ in range(len(row))]
 
             for i in range(len(row)):
-                self.columns[i].append(row[i])  # append data to columns arrays
+                self.columns[i].append(row[i])
 
-    def tableHeader(self):  # get table header
+    def tableHeader(self):
         self.db_cursor.execute(
             f"SELECT * FROM information_schema.columns WHERE table_name='employee' order by ordinal_position")
         headers = []
+        tempHeader = {}
         headers_schema = self.db_cursor.fetchall()
         for header in headers_schema:
-            headers.append(header[3])
+            tempHeader['header'] = header[3]
+            headers.append(tempHeader)
+            tempHeader = {}
 
         return headers
-
-    def writeXLSX(self, file_name=f'{time.time()}', sheet_name='sheet1', table=None):  # write the XLSX file
-        self.getData(table=table)
-        workbook = xlsxwriter.Workbook(f'{file_name}.xlsx', {'default_date_format': 'dd/mm/yyyy'})
-        worksheet = workbook.add_worksheet(sheet_name)
-        row = 0
-        for rows in self.rows:
-            col = 0
-            for val in rows:
-                worksheet.write(row, col, val)
-                col += 1
-            row += 1
-
-        workbook.close()
