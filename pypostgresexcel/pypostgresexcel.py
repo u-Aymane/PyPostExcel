@@ -19,11 +19,17 @@ class PyPostExcel:
         self.header_format = None
         self.root_format = None
         self.child_format = None
-        self.workbook = xlsxwriter.Workbook('test.xlsx')
+        self.workbook = xlsxwriter.Workbook('test.xlsx', {'default_date_format': 'dd/mm/yyyy'})
         self.worksheet = self.workbook.add_worksheet()
         self.data = {}
         self.table_root = 'employee'
         self.table_child = 'employee_performance'
+        self.data_rows = []
+        self.current_row = 2
+        self.header_root = self.tableHeader(self.table_root)
+        self.header_child = self.tableHeader(self.table_child)
+        self.years = []
+        self.col = 1
 
     def tableHeader(self, table: str):
         self.db_cursor.execute(
@@ -90,6 +96,7 @@ class PyPostExcel:
         headers = self.tableHeader(self.table_root) + self.tableHeader(self.table_child)
 
         for row in rows:
+            self.data_rows.append(row)
             i = 0
             for header in headers:
                 if header not in self.data.keys():
@@ -108,6 +115,34 @@ class PyPostExcel:
 
         return header
 
+    def getItemByName(self, name: str):
+        header = self.header_root + self.header_child
+        return header.index(name)
+
+    def SupSection(self, data, main_data, secondary_data, supervisor=False):
+        if supervisor:
+            self.setRowSize(self.current_row, 33.75)
+            self.worksheet.write(self.current_row, 0, data[self.getItemByName(main_data[0])], self.root_format)
+        else:
+            self.worksheet.write(self.current_row, 0, data[self.getItemByName(main_data[0])], self.child_format)
+
+        for i in main_data[1:]:
+            self.worksheet.write(self.current_row, self.col, data[self.getItemByName(i)])
+            self.col += 1
+
+        for year in self.years:
+            date = data[self.getItemByName('date')]
+            if date is not None and date.year == year:
+                for i in secondary_data:
+                    self.worksheet.write(self.current_row, self.col, data[self.getItemByName(i)])
+                    self.col += 1
+
+            else:
+                self.col += len(secondary_data)
+
+        self.current_row += 1
+        self.col = 1
+
     def OrganizeFile(self, main_data_title: str, main_data: list, secondary_data: list,
                      date='date'):  # [id, first_name...etc] , [rating, performance, date...]
 
@@ -116,11 +151,11 @@ class PyPostExcel:
         #  Writing Years Sections
         self.worksheet.merge_range(f'B1:{utility.xl_col_to_name(len(main_data) - 1)}1', main_data_title,
                                    self.year_format)
-        years = []
+        self.years = []
         current_index = len(main_data) - 1
         for items in self.data[date]:
-            if items is not None and items.year not in years:
-                years.append(items.year)
+            if items is not None and items.year not in self.years:
+                self.years.append(items.year)
                 self.worksheet.merge_range(
                     f'{self.ColToName(current_index + 1)}1:{self.ColToName(current_index + len(secondary_data))}1',
                     items.year, self.year_format)
@@ -130,9 +165,18 @@ class PyPostExcel:
 
         main_header = self.TargetedHeader(main_data, self.table_root) + self.TargetedHeader(secondary_data,
                                                                                             self.table_child) * len(
-            years)
+            self.years)
         print(main_header)
         self.worksheet.write_row('A2', main_header, self.header_format)
+
+        # Organize Data -> Supervisor/Employee
+
+        for supervisor in self.data_rows:
+            if supervisor[self.header_root.index('supervisor_id')] is None:
+                self.SupSection(supervisor, main_data, secondary_data, supervisor=True)
+                for employee in self.data_rows:
+                    if employee[self.getItemByName('supervisor_id')] == supervisor[self.getItemByName('id')]:
+                        self.SupSection(employee, main_data, secondary_data)
 
     def run(self):
         self.InitializeFormats()

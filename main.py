@@ -9,5 +9,6 @@ def main():
                        secondary_data=['supervisor_rating', 'clients_rating', 'ai_rating', 'date'])
     agent.closeWorkbook()
 
+    print(agent.data)
 if __name__ == '__main__':
     main()
