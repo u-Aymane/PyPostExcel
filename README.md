@@ -1,4 +1,4 @@
-# BC Skills - Projects
+# PyPostExcel
 
 PyPostExcel is a python library that export a Postgres DB to an Excel File
 
