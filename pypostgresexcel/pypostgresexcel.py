@@ -120,9 +120,9 @@ class PyPostExcel:
         header = self.header_root + self.header_child
         return header.index(name)
 
-    def SupSection(self, data, main_data, secondary_data, supervisor=False):
+    def CoreSection(self, data, main_data, secondary_data, supervisor=False):
         if supervisor:
-            self.setRowSize(self.current_row, 33.75)
+            self.setRootSize(self.current_row)
             self.worksheet.write(self.current_row, 0, data[self.getItemByName(main_data[0])], self.root_format)
         else:
             self.worksheet.write(self.current_row, 0, data[self.getItemByName(main_data[0])], self.child_format)
@@ -171,8 +171,8 @@ class PyPostExcel:
 
         for supervisor in self.data_rows:
             if supervisor[self.header_root.index('supervisor_id')] is None:
-                self.SupSection(supervisor, main_data, secondary_data, supervisor=True)
+                self.CoreSection(supervisor, main_data, secondary_data, supervisor=True)
                 for employee in self.data_rows:
                     if employee[self.getItemByName('supervisor_id')] == supervisor[self.getItemByName('id')]:
-                        self.SupSection(employee, main_data, secondary_data)
+                        self.CoreSection(employee, main_data, secondary_data)
 
