@@ -4,7 +4,7 @@ from xlsxwriter import utility
 
 
 class PyPostExcel:
-    def __init__(self, db_name=None, table=None, password=None, username=None, host=None, port="5432"):
+    def __init__(self, db_name, table, password, username, host, date, port="5432"):
         self.rows = []
         self.db_name = db_name
         self.table = table
@@ -30,6 +30,7 @@ class PyPostExcel:
         self.header_child = self.tableHeader(self.table_child)
         self.years = []
         self.col = 1
+        self.date = date
 
     def tableHeader(self, table: str):
         self.db_cursor.execute(
@@ -90,7 +91,7 @@ class PyPostExcel:
 
     def getTable(self):
         self.db_cursor.execute(f'SELECT * FROM {self.table_root} '
-                               f'JOIN {self.table_child} '
+                               f'LEFT JOIN {self.table_child} '
                                f'ON {self.table_root}.id = {self.table_child}.id_employee')
         rows = self.db_cursor.fetchall()
         headers = self.tableHeader(self.table_root) + self.tableHeader(self.table_child)
@@ -131,7 +132,7 @@ class PyPostExcel:
             self.col += 1
 
         for year in self.years:
-            date = data[self.getItemByName('date')]
+            date = data[self.getItemByName(self.date)]
             if date is not None and date.year == year:
                 for i in secondary_data:
                     self.worksheet.write(self.current_row, self.col, data[self.getItemByName(i)])
@@ -143,9 +144,8 @@ class PyPostExcel:
         self.current_row += 1
         self.col = 1
 
-    def OrganizeFile(self, main_data_title: str, main_data: list, secondary_data: list,
-                     date='date'):  # [id, first_name...etc] , [rating, performance, date...]
-
+    def run(self, main_data_title: str, main_data: list, secondary_data: list):  # [id, first_name...etc] , [rating, performance, date...]
+        self.getTable()
         self.InitializeFormats()
 
         #  Writing Years Sections
@@ -153,7 +153,7 @@ class PyPostExcel:
                                    self.year_format)
         self.years = []
         current_index = len(main_data) - 1
-        for items in self.data[date]:
+        for items in self.data[self.date]:
             if items is not None and items.year not in self.years:
                 self.years.append(items.year)
                 self.worksheet.merge_range(
@@ -163,9 +163,7 @@ class PyPostExcel:
 
         # Write Sub titles (headers) and values for principle section
 
-        main_header = self.TargetedHeader(main_data, self.table_root) + self.TargetedHeader(secondary_data,
-                                                                                            self.table_child) * len(
-            self.years)
+        main_header = self.TargetedHeader(main_data, self.table_root) + self.TargetedHeader(secondary_data, self.table_child) * len(self.years)
         print(main_header)
         self.worksheet.write_row('A2', main_header, self.header_format)
 
@@ -178,13 +176,3 @@ class PyPostExcel:
                     if employee[self.getItemByName('supervisor_id')] == supervisor[self.getItemByName('id')]:
                         self.SupSection(employee, main_data, secondary_data)
 
-    def run(self):
-        self.InitializeFormats()
-        self.worksheet.merge_range('B1:D1', 'Year', self.year_format)
-        self.worksheet.write('B2', 'sub_title', self.header_format)
-        self.worksheet.write('A3', 'Supervisor_Section', self.root_format)
-        self.setRootSize(2)
-
-        for i in range(1, 6):
-            self.worksheet.write(f'A{i + 3}', 'Employees', self.child_format)
-        self.workbook.close()
