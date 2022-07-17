@@ -31,6 +31,8 @@ class PyPostExcel:
         self.years = []
         self.col = 1
         self.date = date
+        self.supervisors = []
+        self.employee = []
 
     def tableHeader(self, table: str):
         self.db_cursor.execute(
@@ -92,7 +94,8 @@ class PyPostExcel:
     def getTable(self):
         self.db_cursor.execute(f'SELECT * FROM {self.table_root} '
                                f'LEFT JOIN {self.table_child} '
-                               f'ON {self.table_root}.id = {self.table_child}.id_employee')
+                               f'ON {self.table_root}.id = {self.table_child}.id_employee '
+                               f'ORDER BY date')
         rows = self.db_cursor.fetchall()
         headers = self.tableHeader(self.table_root) + self.tableHeader(self.table_child)
 
@@ -120,7 +123,8 @@ class PyPostExcel:
         header = self.header_root + self.header_child
         return header.index(name)
 
-    def CoreSection(self, data, main_data, secondary_data, supervisor=False):
+    def CoreSection(self, list_of_data, main_data, secondary_data, supervisor=False):
+        data = list_of_data[0]
         if supervisor:
             self.setRootSize(self.current_row)
             self.worksheet.write(self.current_row, 0, data[self.getItemByName(main_data[0])], self.root_format)
@@ -132,13 +136,15 @@ class PyPostExcel:
             self.col += 1
 
         for year in self.years:
-            date = data[self.getItemByName(self.date)]
-            if date is not None and date.year == year:
-                for i in secondary_data:
-                    self.worksheet.write(self.current_row, self.col, data[self.getItemByName(i)])
-                    self.col += 1
+            temp_col = self.col
+            for temp in list_of_data:
+                date = temp[self.getItemByName(self.date)]
+                if date is not None and date.year == year:
+                    for i in secondary_data:
+                        self.worksheet.write(self.current_row, self.col, temp[self.getItemByName(i)])
+                        self.col += 1
 
-            else:
+            if temp_col == self.col:
                 self.col += len(secondary_data)
 
         self.current_row += 1
@@ -164,15 +170,26 @@ class PyPostExcel:
         # Write Sub titles (headers) and values for principle section
 
         main_header = self.TargetedHeader(main_data, self.table_root) + self.TargetedHeader(secondary_data, self.table_child) * len(self.years)
-        print(main_header)
+        # print(main_header)
         self.worksheet.write_row('A2', main_header, self.header_format)
 
         # Organize Data -> Supervisor/Employee
 
         for supervisor in self.data_rows:
-            if supervisor[self.header_root.index('supervisor_id')] is None:
-                self.CoreSection(supervisor, main_data, secondary_data, supervisor=True)
+            to_write = []
+            if supervisor[self.getItemByName('supervisor_id')] is None and supervisor[self.getItemByName('id')] not in self.supervisors:
+                for supervisor_ in self.data_rows:
+                    if supervisor_[self.getItemByName('id')] == supervisor[self.getItemByName('id')]:
+                        self.supervisors.append(supervisor[self.getItemByName('id')])
+                        to_write.append(supervisor_)
+                        # print(self.supervisors)
+                self.CoreSection(to_write, main_data, secondary_data, supervisor=True)
                 for employee in self.data_rows:
-                    if employee[self.getItemByName('supervisor_id')] == supervisor[self.getItemByName('id')]:
-                        self.CoreSection(employee, main_data, secondary_data)
+                    to_write = []
+                    if employee[self.getItemByName('supervisor_id')] == supervisor[self.getItemByName('id')] and employee[self.getItemByName('id')] not in self.employee:
+                        for employee_ in self.data_rows:
+                            if employee_[self.getItemByName('id')] == employee[self.getItemByName('id')]:
+                                self.employee.append(employee[self.getItemByName('id')])
+                                to_write.append(employee_)
+                        self.CoreSection(to_write, main_data, secondary_data)
 
